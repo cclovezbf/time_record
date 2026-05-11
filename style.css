@@ -1,0 +1,107 @@
+/* 自定义滚动条 */
+#recordList::-webkit-scrollbar {
+    width: 6px;
+}
+#recordList::-webkit-scrollbar-track {
+    background: #f3f4f6;
+}
+#recordList::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #818cf8, #a78bfa);
+    border-radius: 3px;
+}
+#recordList::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #6366f1, #8b5cf6);
+}
+
+/* 涟漪动画 */
+@keyframes ripple {
+    0% {
+        transform: scale(0);
+        opacity: 0.6;
+    }
+    100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
+}
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    pointer-events: none;
+}
+
+/* 列表项进入动画 */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+.record-item {
+    animation: slideIn 0.4s ease-out;
+}
+
+/* 高亮新增项目 */
+@keyframes highlight {
+    0% {
+        background-color: rgba(167, 139, 250, 0.2);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+.record-item.new-item {
+    animation: slideIn 0.4s ease-out, highlight 1.5s ease-out;
+}
+
+/* Toast 显示 */
+.toast-show {
+    opacity: 1 !important;
+    transform: translate(-50%, -10px) !important;
+}
+
+/* 按钮按下波动 */
+@keyframes pulse-ring {
+    0% {
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 25px rgba(139, 92, 246, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    }
+}
+.pulse-effect {
+    animation: pulse-ring 0.8s ease-out;
+}
+
+/* 数字翻转动画 */
+@keyframes countUp {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+.count-animate {
+    display: inline-block;
+    animation: countUp 0.4s ease-out;
+}
+
+kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.75rem;
+    border: 1px solid #d1d5db;
+    box-shadow: 0 1px 0 #d1d5db;
+}

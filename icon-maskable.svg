@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="mbg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <!-- maskable 图标需要安全区在中心 80%，外围留出 padding -->
+  <rect width="512" height="512" fill="url(#mbg)"/>
+  <!-- 时钟主体 -->
+  <circle cx="256" cy="256" r="110" fill="#ffffff" fill-opacity="0.95"/>
+  <circle cx="256" cy="256" r="110" fill="none" stroke="#8b5cf6" stroke-opacity="0.25" stroke-width="3"/>
+  <!-- 4个主刻度 -->
+  <g stroke="#6366f1" stroke-width="4" stroke-linecap="round">
+    <line x1="256" y1="160" x2="256" y2="174"/>
+    <line x1="256" y1="338" x2="256" y2="352"/>
+    <line x1="160" y1="256" x2="174" y2="256"/>
+    <line x1="338" y1="256" x2="352" y2="256"/>
+  </g>
+  <!-- 时针 -->
+  <line x1="256" y1="256" x2="256" y2="196" stroke="#6366f1" stroke-width="9" stroke-linecap="round"/>
+  <!-- 分针 -->
+  <line x1="256" y1="256" x2="316" y2="256" stroke="#8b5cf6" stroke-width="7" stroke-linecap="round"/>
+  <!-- 中心点 -->
+  <circle cx="256" cy="256" r="10" fill="#ec4899"/>
+  <circle cx="256" cy="256" r="4" fill="#ffffff"/>
+</svg>
