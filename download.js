@@ -7,6 +7,7 @@ const SOURCE_FILES = [
     'app.js',
     'db.js',
     'pwa.js',
+    'pwa-icons.js',
     'style.css',
     'manifest.json',
     'service-worker.js',

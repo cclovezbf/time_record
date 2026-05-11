@@ -1,6 +1,6 @@
 // ==================== Service Worker ====================
 // 缓存版本号：每次发布新版本时修改，激活阶段会自动清理所有非当前版本缓存
-const CACHE_VERSION = 'v1.2.0';
+const CACHE_VERSION = 'v1.2.1';
 const CORE_CACHE   = `time-logger-core-${CACHE_VERSION}`;     // 应用 Shell（核心同源资源）
 const RUNTIME_CACHE = `time-logger-runtime-${CACHE_VERSION}`; // CDN / 第三方资源（独立分仓便于一键清理）
 
@@ -20,6 +20,7 @@ const CORE_ASSETS = [
     './app.js',
     './db.js',
     './pwa.js',
+    './pwa-icons.js',
     './manifest.json',
     './icon.svg',
     './icon-maskable.svg'

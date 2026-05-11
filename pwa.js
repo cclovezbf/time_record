@@ -85,22 +85,95 @@ function hideInstallButton() {
 }
 
 async function triggerInstall() {
-    // iOS Safari 不支持 beforeinstallprompt，需要引导用户手动操作
-    if (!deferredInstallPrompt) {
+    // 已经在 PWA 内
+    if (isStandalone()) {
+        if (typeof showToast === 'function') {
+            showToast('应用已安装，正在以 App 模式运行 🎉', 'ri-checkbox-circle-line');
+        }
+        return;
+    }
+
+    // iOS Safari：弹出图文引导
+    if (isIOS()) {
         showIOSInstallGuide();
         return;
     }
 
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    console.log('[PWA] 用户选择:', outcome);
-    if (outcome === 'accepted') {
-        if (typeof showToast === 'function') {
-            showToast('正在安装应用...', 'ri-download-cloud-line');
+    // Android / Desktop Chromium：beforeinstallprompt 已就绪
+    if (deferredInstallPrompt) {
+        try {
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            console.log('[PWA] 用户选择:', outcome);
+            if (outcome === 'accepted') {
+                if (typeof showToast === 'function') {
+                    showToast('正在安装应用...', 'ri-download-cloud-line');
+                }
+            }
+        } catch (err) {
+            console.warn('[PWA] prompt 调用失败:', err);
         }
+        deferredInstallPrompt = null;
+        hideInstallButton();
+        return;
     }
-    deferredInstallPrompt = null;
-    hideInstallButton();
+
+    // 走到这里说明：非 iOS、非 standalone、但浏览器没有抛出 beforeinstallprompt
+    // 给出针对性诊断
+    diagnoseInstallability();
+}
+
+// 诊断为什么 PWA 不能安装，并给出可操作的建议
+function diagnoseInstallability() {
+    const ua = navigator.userAgent.toLowerCase();
+    const isHttps = location.protocol === 'https:' || location.hostname === 'localhost';
+    const hasSW = 'serviceWorker' in navigator;
+    const isWeChat = /micromessenger/i.test(ua);
+    const isQQ = /\bqq\//i.test(ua) || /qqbrowser/i.test(ua);
+    const isUC = /ucbrowser/i.test(ua);
+    const isAndroid = /android/i.test(ua);
+    const isChromium = /chrome|chromium|edg|samsungbrowser/i.test(ua);
+
+    let msg = '';
+    let icon = 'ri-information-line';
+
+    if (!isHttps) {
+        msg = '⚠️ 当前页面不是 HTTPS，无法安装 PWA。请使用 https:// 链接打开';
+        icon = 'ri-shield-cross-line';
+    } else if (!hasSW) {
+        msg = '⚠️ 当前浏览器不支持 PWA，请换用 Chrome / Edge 等现代浏览器';
+        icon = 'ri-error-warning-line';
+    } else if (isWeChat) {
+        msg = '⚠️ 微信内置浏览器不支持安装。请点右上角 →「在浏览器中打开」后再试';
+        icon = 'ri-wechat-line';
+    } else if (isQQ || isUC) {
+        msg = '⚠️ 当前浏览器（QQ/UC）支持有限。建议使用系统自带 Chrome / 三星浏览器打开';
+        icon = 'ri-error-warning-line';
+    } else if (isAndroid && isChromium) {
+        msg = '🔄 浏览器还没满足安装条件。请刷新一次页面，或菜单 → "添加到主屏幕"';
+        icon = 'ri-refresh-line';
+        // 同时尝试给一些可视化提示：滚动到设置页 / 显示菜单按钮
+    } else {
+        msg = '🔄 当前浏览器暂不可一键安装。可尝试浏览器菜单 → "添加到主屏幕"';
+        icon = 'ri-menu-line';
+    }
+
+    if (typeof showToast === 'function') {
+        showToast(msg, icon);
+    } else {
+        alert(msg);
+    }
+
+    // 控制台输出详细诊断
+    console.group('[PWA 安装诊断]');
+    console.log('协议:', location.protocol, '| 域名:', location.hostname);
+    console.log('HTTPS / Localhost:', isHttps);
+    console.log('Service Worker 支持:', hasSW);
+    console.log('SW 控制器:', !!navigator.serviceWorker?.controller);
+    console.log('User-Agent:', navigator.userAgent);
+    console.log('manifest 修复状态:', window.__PWA_MANIFEST_PATCHED__);
+    console.log('beforeinstallprompt 已触发:', !!deferredInstallPrompt);
+    console.groupEnd();
 }
 
 // ==================== 4. iOS 安装引导（iOS Safari 专属） ====================
@@ -194,7 +267,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // iOS Safari 主动显示安装入口（因为它没有 beforeinstallprompt 事件）
-    if (isIOS() && !isStandalone()) {
+    // Android / Desktop 即便没立刻收到 beforeinstallprompt，也展示入口，点击时给出诊断
+    if (!isStandalone()) {
         showInstallButton();
     }
 
