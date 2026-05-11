@@ -1,6 +1,6 @@
 // ==================== Service Worker ====================
 // 缓存版本号：每次发布新版本时修改，会自动清理旧缓存
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.1.0';
 const CACHE_NAME = `time-logger-${CACHE_VERSION}`;
 
 // 需要预缓存的核心资源（App Shell）
@@ -11,6 +11,7 @@ const CORE_ASSETS = [
     './app.js',
     './db.js',
     './pwa.js',
+    './download.js',
     './manifest.json',
     './icon.svg',
     './icon-maskable.svg'

@@ -2,10 +2,33 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>时间记录器 - Time Logger</title>
+
+    <!-- ============== PWA 元信息 ============== -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8b5cf6">
+    <meta name="description" content="一键记录每个重要时刻，支持按天/月/年分组统计，离线可用">
+
+    <!-- iOS Safari PWA 支持 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="时间记录">
+    <link rel="apple-touch-icon" href="icon.svg">
+
+    <!-- 浏览器图标 -->
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="shortcut icon" href="icon.svg">
+
+    <!-- Microsoft Tile -->
+    <meta name="msapplication-TileColor" content="#8b5cf6">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- Dexie.js: IndexedDB 优雅封装库 -->
+    <script src="https://cdn.jsdelivr.net/npm/dexie@4.0.8/dist/dexie.min.js"></script>
+    <!-- JSZip: 用于打包下载源码 -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
@@ -18,16 +41,31 @@
                         <i class="ri-timer-flash-line text-white text-xl"></i>
                     </div>
                     <div>
-                        <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">时间记录器</h1>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h1 class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">时间记录器</h1>
+                            <!-- PWA 模式徽章（仅在已安装时显示） -->
+                            <span id="pwaBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow"></span>
+                        </div>
                         <p class="text-xs text-gray-500">Time Logger · 一键记录每个重要时刻</p>
                     </div>
                 </div>
-                <div class="hidden md:flex items-center gap-6 text-sm text-gray-600">
-                    <div class="flex items-center gap-2">
+                <div class="flex items-center gap-3 text-sm text-gray-600">
+                    <!-- 网络状态指示器 -->
+                    <span id="networkStatus" class="network-status hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600" title="网络状态">
+                        <i class="ri-wifi-line"></i> 在线
+                    </span>
+
+                    <!-- 安装按钮（仅在可安装时显示） -->
+                    <button id="installBtn" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-md hover:shadow-lg hover:scale-105 transition install-btn-pulse" title="安装到桌面">
+                        <i class="ri-download-2-line"></i>
+                        <span>安装App</span>
+                    </button>
+
+                    <div class="hidden md:flex items-center gap-2">
                         <i class="ri-calendar-line text-indigo-500"></i>
                         <span id="todayDate">--</span>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="hidden md:flex items-center gap-2">
                         <i class="ri-time-line text-purple-500"></i>
                         <span id="liveClock" class="font-mono font-semibold text-gray-800">--:--:--</span>
                     </div>
@@ -85,6 +123,31 @@
                         </div>
                     </div>
 
+                    <!-- 周期统计卡片 -->
+                    <div class="bg-white rounded-2xl shadow-md p-5">
+                        <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-4">
+                            <i class="ri-bar-chart-2-line text-indigo-500"></i>
+                            周期统计
+                        </h3>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="text-center p-3 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100">
+                                <p class="text-xs text-indigo-600 mb-1">今日</p>
+                                <p class="text-2xl font-bold text-indigo-700" id="todayCount">0</p>
+                                <p class="text-[10px] text-indigo-500 mt-1">次</p>
+                            </div>
+                            <div class="text-center p-3 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100">
+                                <p class="text-xs text-purple-600 mb-1">本月</p>
+                                <p class="text-2xl font-bold text-purple-700" id="monthCount">0</p>
+                                <p class="text-[10px] text-purple-500 mt-1">次</p>
+                            </div>
+                            <div class="text-center p-3 rounded-xl bg-gradient-to-br from-pink-50 to-pink-100">
+                                <p class="text-xs text-pink-600 mb-1">今年</p>
+                                <p class="text-2xl font-bold text-pink-700" id="yearCount">0</p>
+                                <p class="text-[10px] text-pink-500 mt-1">次</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 操作按钮组 -->
                     <div class="bg-white rounded-2xl shadow-md p-5 space-y-3">
                         <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -101,7 +164,66 @@
                             <button id="clearBtn" class="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition text-sm font-medium col-span-2">
                                 <i class="ri-delete-bin-line"></i> 清空记录
                             </button>
+                            <button id="downloadSourceBtn" class="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg hover:scale-[1.02] transition text-sm font-medium col-span-2">
+                                <i class="ri-folder-zip-line"></i> 下载源码 (ZIP)
+                            </button>
                         </div>
+                    </div>
+
+                    <!-- 容量监控卡片 -->
+                    <div class="bg-white rounded-2xl shadow-md p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                <i class="ri-database-2-line text-indigo-500"></i>
+                                存储容量监控
+                            </h3>
+                            <span id="storageStatus" class="px-2 py-0.5 text-xs rounded-full bg-emerald-50 text-emerald-600 font-medium">
+                                <i class="ri-shield-check-line"></i> 充足
+                            </span>
+                        </div>
+
+                        <!-- 引擎徽章 -->
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow">
+                                <i class="ri-cpu-line"></i> IndexedDB 引擎
+                            </span>
+                            <span class="text-[10px] text-gray-400">支持海量存储</span>
+                        </div>
+
+                        <!-- 进度条 -->
+                        <div class="mb-3">
+                            <div class="flex items-center justify-between text-xs mb-1.5">
+                                <span class="text-gray-500">已用空间</span>
+                                <span class="font-mono">
+                                    <span id="storageUsed" class="font-semibold text-gray-800">0 B</span>
+                                    <span class="text-gray-400"> / </span>
+                                    <span id="storageTotal" class="text-gray-500">-- MB</span>
+                                </span>
+                            </div>
+                            <div class="relative w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                                <div id="storageBar" class="absolute inset-y-0 left-0 rounded-full transition-all duration-500 bg-gradient-to-r from-emerald-400 to-teal-500" style="width: 0%"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span id="storagePercent" class="text-[10px] font-bold text-gray-700 mix-blend-difference">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 详细数据 -->
+                        <div class="grid grid-cols-2 gap-2 mt-4">
+                            <div class="p-2.5 rounded-lg bg-indigo-50">
+                                <p class="text-[10px] text-indigo-500 mb-0.5">单条平均</p>
+                                <p class="text-sm font-bold text-indigo-700" id="avgSize">-- B</p>
+                            </div>
+                            <div class="p-2.5 rounded-lg bg-purple-50">
+                                <p class="text-[10px] text-purple-500 mb-0.5">剩余可记录</p>
+                                <p class="text-sm font-bold text-purple-700" id="remainCount">--</p>
+                            </div>
+                        </div>
+
+                        <!-- 提示 -->
+                        <p class="text-[11px] text-gray-400 mt-3 leading-relaxed">
+                            <i class="ri-information-line"></i> 数据存储在浏览器本地 IndexedDB，容量可达 GB 级，建议定期导出 CSV 备份
+                        </p>
                     </div>
                 </div>
 
@@ -109,30 +231,47 @@
                 <div class="lg:col-span-2">
                     <div class="bg-white rounded-3xl shadow-xl overflow-hidden">
                         <!-- 列表头部 -->
-                        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-white shadow flex items-center justify-center">
-                                    <i class="ri-list-check-2 text-indigo-600 text-xl"></i>
+                        <div class="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-white shadow flex items-center justify-center">
+                                        <i class="ri-list-check-2 text-indigo-600 text-xl"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-gray-800">记录列表</h3>
+                                        <p class="text-xs text-gray-500">所有时间记录将自动保存到本地</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 class="font-bold text-gray-800">记录列表</h3>
-                                    <p class="text-xs text-gray-500">所有时间记录将自动保存到本地</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="relative">
+                                        <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                                        <input id="searchInput" type="text" placeholder="搜索备注..." class="pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 w-40">
+                                    </div>
+                                    <select id="sortSelect" class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400">
+                                        <option value="desc">最新在前</option>
+                                        <option value="asc">最早在前</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <div class="relative">
-                                    <i class="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                                    <input id="searchInput" type="text" placeholder="搜索备注..." class="pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 w-40">
-                                </div>
-                                <select id="sortSelect" class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400">
-                                    <option value="desc">最新在前</option>
-                                    <option value="asc">最早在前</option>
-                                </select>
+                            <!-- 视图切换 Tabs -->
+                            <div class="flex items-center gap-2 bg-white/70 p-1 rounded-xl w-fit">
+                                <button class="view-tab active-tab px-4 py-1.5 text-sm font-medium rounded-lg transition" data-view="all">
+                                    <i class="ri-list-unordered mr-1"></i>全部列表
+                                </button>
+                                <button class="view-tab px-4 py-1.5 text-sm font-medium rounded-lg transition" data-view="day">
+                                    <i class="ri-calendar-line mr-1"></i>按天
+                                </button>
+                                <button class="view-tab px-4 py-1.5 text-sm font-medium rounded-lg transition" data-view="month">
+                                    <i class="ri-calendar-2-line mr-1"></i>按月
+                                </button>
+                                <button class="view-tab px-4 py-1.5 text-sm font-medium rounded-lg transition" data-view="year">
+                                    <i class="ri-calendar-event-line mr-1"></i>按年
+                                </button>
                             </div>
                         </div>
 
                         <!-- 列表内容 -->
-                        <div id="recordList" class="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                        <div id="recordList" class="divide-y divide-gray-100 max-h-[700px] overflow-y-auto">
                             <!-- 空状态 -->
                             <div id="emptyState" class="py-20 text-center">
                                 <div class="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
@@ -159,6 +298,54 @@
         <span id="toastText">操作成功</span>
     </div>
 
+    <!-- ============== iOS 安装引导弹窗 ============== -->
+    <div id="iosInstallModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-4">
+        <div class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-md w-full overflow-hidden ios-modal-enter">
+            <div class="p-6 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white relative">
+                <button id="iosModalClose" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="ri-close-line"></i>
+                </button>
+                <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
+                    <i class="ri-apple-line text-4xl"></i>
+                </div>
+                <h3 class="text-center text-xl font-bold">添加到主屏幕</h3>
+                <p class="text-center text-sm text-white/80 mt-1">在 iPhone / iPad 上安装时间记录器</p>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">1</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-800 font-medium">点击 Safari 底部的 <i class="ri-share-forward-box-line text-blue-500 mx-1"></i> 分享按钮</p>
+                        <p class="text-xs text-gray-500 mt-1">在浏览器底部工具栏中央位置</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">2</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-800 font-medium">向下滚动找到「添加到主屏幕」</p>
+                        <p class="text-xs text-gray-500 mt-1"><i class="ri-add-box-line mr-1"></i> Add to Home Screen</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="flex-shrink-0 w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center font-bold text-sm">3</span>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-800 font-medium">点击右上角「添加」即可完成</p>
+                        <p class="text-xs text-gray-500 mt-1">桌面上会出现时间记录器图标 ✨</p>
+                    </div>
+                </div>
+                <div class="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                    <p class="text-xs text-amber-700 flex items-start gap-1.5">
+                        <i class="ri-information-line mt-0.5"></i>
+                        <span>请使用 <b>Safari 浏览器</b> 打开本页面，其他浏览器（如微信内）暂不支持安装。</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="db.js"></script>
     <script src="app.js"></script>
+    <script src="pwa.js"></script>
+    <script src="download.js"></script>
 </body>
 </html>
