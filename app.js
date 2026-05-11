@@ -256,23 +256,17 @@ function renderEmpty(isSearching) {
 }
 
 function renderRecordItem(r, orderNum, gapStr, isNew) {
-    const ago = formatDuration(Date.now() - r.timestamp);
     const [c1, c2] = getColors(orderNum);
     return `
         <div class="record-item ${isNew ? 'new-item' : ''} px-6 py-4 hover:bg-gray-50 transition group" data-id="${r.id}">
-            <div class="flex items-start gap-4">
-                <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${c1} ${c2} flex items-center justify-center text-white font-bold shadow-md">
-                    ${orderNum < 100 ? `#${orderNum}` : orderNum}
+            <div class="flex items-start gap-3">
+                <div class="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br ${c1} ${c2} flex items-center justify-center text-white font-bold shadow-sm text-xs">
+                    ${orderNum < 1000 ? `#${orderNum}` : orderNum}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap mb-1">
-                        <span class="font-mono font-semibold text-gray-800 text-lg">${formatTime(r.timestamp)}</span>
-                        <span class="text-sm text-gray-500">${formatDate(r.timestamp)}</span>
+                        <span class="font-mono font-semibold text-gray-800 text-sm">${formatDateTime(r.timestamp)}</span>
                         <span class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs">${getWeekDay(r.timestamp)}</span>
-                        ${gapStr ? `<span class="px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-xs flex items-center gap-1">
-                            <i class="ri-arrow-right-up-line"></i>${gapStr}
-                        </span>` : ''}
-                        <span class="text-xs text-gray-400">${ago.value}${ago.unit}</span>
                     </div>
                     <input type="text"
                         class="note-input w-full mt-1 px-2 py-1 text-sm bg-transparent border border-transparent hover:border-gray-200 focus:border-indigo-300 focus:bg-white rounded transition outline-none"

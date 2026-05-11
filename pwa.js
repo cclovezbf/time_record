@@ -59,6 +59,12 @@ function showUpdateBanner(newWorker) {
 window.addEventListener('beforeinstallprompt', (e) => {
     // 阻止浏览器自带的提示
     e.preventDefault();
+    // 已安装情况下忽略后续的可安装事件，避免再次弹出按钮
+    if (isStandalone() || isAppInstalled) {
+        deferredInstallPrompt = null;
+        hideInstallButton();
+        return;
+    }
     deferredInstallPrompt = e;
     console.log('[PWA] 应用可安装');
     showInstallButton();
@@ -75,13 +81,35 @@ window.addEventListener('appinstalled', () => {
 });
 
 function showInstallButton() {
+    // 已安装（standalone 模式）下不再展示安装入口
+    if (isStandalone() || isAppInstalled) {
+        hideInstallButton();
+        return;
+    }
     const btn = document.getElementById('installBtn');
     if (btn) btn.classList.remove('hidden');
+    const sBtn = document.getElementById('settingsInstallBtn');
+    if (sBtn) sBtn.classList.remove('hidden');
 }
 
 function hideInstallButton() {
     const btn = document.getElementById('installBtn');
     if (btn) btn.classList.add('hidden');
+
+    // 设置页中的"立即安装"按钮也一并隐藏
+    const sBtn = document.getElementById('settingsInstallBtn');
+    if (sBtn) sBtn.classList.add('hidden');
+
+    // 设置页的状态文案改为"已安装"
+    const statusText = document.getElementById('installStatusText');
+    if (statusText) statusText.textContent = '应用已安装到本地，可离线使用 ✨';
+
+    // 顶部 PWA 徽章亮起
+    const badge = document.getElementById('pwaBadge');
+    if (badge) {
+        badge.classList.remove('hidden');
+        badge.innerHTML = '<i class="ri-smartphone-line"></i> App 模式';
+    }
 }
 
 async function triggerInstall() {
@@ -240,12 +268,9 @@ function handleUrlAction() {
 document.addEventListener('DOMContentLoaded', () => {
     // 显示当前安装状态徽章
     if (isStandalone()) {
-        const badge = document.getElementById('pwaBadge');
-        if (badge) {
-            badge.classList.remove('hidden');
-            badge.innerHTML = '<i class="ri-smartphone-line"></i> App 模式';
-        }
         isAppInstalled = true;
+        // 同步隐藏顶部 + 设置页的安装入口，亮起 App 模式徽章
+        hideInstallButton();
     }
 
     // 绑定安装按钮
@@ -270,6 +295,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Android / Desktop 即便没立刻收到 beforeinstallprompt，也展示入口，点击时给出诊断
     if (!isStandalone()) {
         showInstallButton();
+    }
+
+    // 监听 display-mode 切换：用户在浏览器中点了"安装"后，模式会变为 standalone，
+    // 此时立即把所有安装入口隐藏（兼容某些浏览器不抛 appinstalled 的情况）
+    if (window.matchMedia) {
+        const mql = window.matchMedia('(display-mode: standalone)');
+        const handler = (e) => {
+            if (e.matches) {
+                isAppInstalled = true;
+                deferredInstallPrompt = null;
+                hideInstallButton();
+            }
+        };
+        if (typeof mql.addEventListener === 'function') {
+            mql.addEventListener('change', handler);
+        } else if (typeof mql.addListener === 'function') {
+            mql.addListener(handler);
+        }
     }
 
     // 初始网络状态
