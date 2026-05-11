@@ -3,6 +3,7 @@ let records = [];                // 内存中的记录缓存（用于快速渲�
 let currentView = 'all';         // all | day | month | year
 let collapsedGroups = new Set(); // 折叠的分组 key 集合
 let isReady = false;             // 数据库是否就绪
+let currentPage = 'home';        // 当前底部 Tab：home | detail | settings
 
 // ==================== 工具函数 ====================
 function pad(n) {
@@ -214,64 +215,6 @@ async function updateNote(id, note) {
     if (record) record.note = note;
 }
 
-async function clearAll() {
-    if (records.length === 0) {
-        showToast('暂无记录可清空', 'ri-information-line');
-        return;
-    }
-    if (!confirm(`确定要清空全部 ${records.length} 条记录吗？此操作不可恢复。`)) return;
-    await dbClearRecords();
-    records = [];
-    renderList();
-    updateStats();
-    showToast('已清空全部记录', 'ri-delete-bin-line');
-}
-
-function exportCSV() {
-    if (records.length === 0) {
-        showToast('暂无记录可导出', 'ri-information-line');
-        return;
-    }
-    const sorted = [...records].sort((a, b) => a.timestamp - b.timestamp);
-    let csv = '\ufeff序号,日期,时间,星期,时间戳,备注\n';
-    sorted.forEach((r, i) => {
-        const note = (r.note || '').replace(/"/g, '""');
-        csv += `${i + 1},${formatDate(r.timestamp)},${formatTime(r.timestamp)},${getWeekDay(r.timestamp)},${r.timestamp},"${note}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `时间记录_${formatDate(Date.now())}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('已导出 CSV 文件', 'ri-download-line');
-}
-
-function copyAll() {
-    if (records.length === 0) {
-        showToast('暂无记录可复制', 'ri-information-line');
-        return;
-    }
-    const sorted = [...records].sort((a, b) => a.timestamp - b.timestamp);
-    const text = sorted.map((r, i) => {
-        const noteStr = r.note ? ` | ${r.note}` : '';
-        return `${i + 1}. ${formatDateTime(r.timestamp)} ${getWeekDay(r.timestamp)}${noteStr}`;
-    }).join('\n');
-
-    navigator.clipboard.writeText(text).then(() => {
-        showToast(`已复制 ${records.length} 条记录到剪贴板`, 'ri-file-copy-line');
-    }).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        showToast(`已复制 ${records.length} 条记录到剪贴板`, 'ri-file-copy-line');
-    });
-}
-
 // ==================== 渲染列表 ====================
 function getFilteredSortedRecords() {
     const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -468,6 +411,59 @@ function renderList(highlightFirst = false) {
     }
 }
 
+// ==================== 主页：最近 10 条记录 ====================
+function renderRecentList() {
+    const el = document.getElementById('recentList');
+    if (!el) return;
+
+    if (records.length === 0) {
+        el.innerHTML = `
+            <div class="py-10 text-center">
+                <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                    <i class="ri-inbox-line text-3xl text-indigo-400"></i>
+                </div>
+                <p class="text-sm text-gray-500">还没有任何记录</p>
+                <p class="text-xs text-gray-400 mt-1">点击上方大按钮开始记录吧 ✨</p>
+            </div>
+        `;
+        return;
+    }
+
+    // records 已按时间倒序保存（addRecord 用 unshift），但这里再 sort 一次保证准确
+    const recent = [...records]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 10);
+
+    // 全局序号映射（按时间正序的序号）
+    const timeSorted = [...records].sort((a, b) => a.timestamp - b.timestamp);
+    const indexMap = new Map();
+    timeSorted.forEach((r, i) => indexMap.set(r.id, i));
+
+    el.innerHTML = recent.map((r, idx) => {
+        const orderNum = indexMap.get(r.id) + 1;
+        const [c1, c2] = getColors(orderNum);
+        const ago = formatDuration(Date.now() - r.timestamp);
+        const note = (r.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        return `
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-gray-50 to-white hover:from-indigo-50 hover:to-purple-50 transition group border border-gray-100">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br ${c1} ${c2} flex items-center justify-center text-white text-xs font-bold shadow-md">
+                    ${orderNum < 1000 ? '#' + orderNum : orderNum}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-mono font-semibold text-gray-800 text-sm">${formatTime(r.timestamp)}</span>
+                        <span class="text-xs text-gray-500">${formatDate(r.timestamp)}</span>
+                        <span class="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px]">${getWeekDay(r.timestamp)}</span>
+                    </div>
+                    ${note ? `<p class="text-xs text-gray-500 mt-1 truncate"><i class="ri-sticky-note-line mr-0.5"></i>${note}</p>` : ''}
+                </div>
+                <span class="flex-shrink-0 text-[11px] text-gray-400 whitespace-nowrap">${ago.value}${ago.unit}</span>
+            </div>
+        `;
+    }).join('');
+}
+
 // ==================== 统计更新 ====================
 function updateStats() {
     document.getElementById('totalCount').textContent = records.length;
@@ -478,6 +474,7 @@ function updateStats() {
         document.getElementById('todayCount').textContent = '0';
         document.getElementById('monthCount').textContent = '0';
         document.getElementById('yearCount').textContent = '0';
+        renderRecentList();
         updateStorageMonitor();
         return;
     }
@@ -501,6 +498,7 @@ function updateStats() {
     document.getElementById('monthCount').textContent = monthN;
     document.getElementById('yearCount').textContent = yearN;
 
+    renderRecentList();
     updateStorageMonitor();
 }
 
@@ -524,15 +522,36 @@ document.getElementById('recordBtn').addEventListener('click', (e) => {
     addRecord();
 });
 
-document.getElementById('clearBtn').addEventListener('click', clearAll);
-document.getElementById('exportBtn').addEventListener('click', exportCSV);
-document.getElementById('copyBtn').addEventListener('click', copyAll);
+// 快捷"查看详情"按钮 → 切换到详情页
+document.getElementById('quickViewDetailBtn')?.addEventListener('click', () => {
+    switchPage('detail');
+});
+
+// 主页"最近记录"卡片右上角的"查看全部"按钮
+document.getElementById('recentMoreBtn')?.addEventListener('click', () => {
+    switchPage('detail');
+});
 
 document.getElementById('searchInput').addEventListener('input', () => renderList());
 document.getElementById('sortSelect').addEventListener('change', () => renderList());
 
 document.querySelectorAll('.view-tab').forEach(tab => {
     tab.addEventListener('click', () => switchView(tab.dataset.view));
+});
+
+// 底部导航切换
+document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchPage(btn.dataset.page));
+});
+
+// 设置页内的"立即安装"按钮 → 复用顶栏 installBtn 的点击行为
+document.getElementById('settingsInstallBtn')?.addEventListener('click', () => {
+    if (typeof triggerInstall === 'function') {
+        triggerInstall();
+    } else {
+        // 兜底：直接点击顶栏按钮
+        document.getElementById('installBtn')?.click();
+    }
 });
 
 document.getElementById('recordList').addEventListener('click', async (e) => {
@@ -575,6 +594,180 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ==================== 页面 Tab 切换 ====================
+const PAGE_META = {
+    home:     { title: '时间记录器', subtitle: 'Time Logger · 一键记录每个重要时刻' },
+    detail:   { title: '记录详情',   subtitle: '查看、搜索与管理全部记录' },
+    settings: { title: '设置',       subtitle: '应用配置 · 存储管理 · 数据导出' }
+};
+
+function switchPage(page) {
+    if (!PAGE_META[page]) return;
+    currentPage = page;
+
+    // 切换主体内容显示
+    document.querySelectorAll('.page-section').forEach(sec => sec.classList.add('hidden'));
+    const target = document.getElementById('page' + page.charAt(0).toUpperCase() + page.slice(1));
+    if (target) {
+        target.classList.remove('hidden');
+        // 重置动画
+        target.style.animation = 'none';
+        target.offsetHeight; // 触发重绘
+        target.style.animation = '';
+    }
+
+    // 切换底部导航激活态
+    document.querySelectorAll('.bottom-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.page === page);
+    });
+
+    // 更新顶栏标题/副标题
+    const meta = PAGE_META[page];
+    const titleEl = document.getElementById('pageTitle');
+    const subEl = document.getElementById('pageSubtitle');
+    if (titleEl) titleEl.textContent = meta.title;
+    if (subEl) subEl.textContent = meta.subtitle;
+
+    // 滚动到顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // 切到设置页时自动刷新一次缓存统计
+    if (page === 'settings' && typeof refreshCacheStats === 'function') {
+        // 稍微延迟，等 SW 准备好响应
+        setTimeout(() => refreshCacheStats(), 100);
+    }
+}
+
+// ==================== 缓存管理 ====================
+function formatCacheBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    return (bytes / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+
+// 通过 MessageChannel 与 SW 通信
+function sendSWMessage(type) {
+    return new Promise((resolve, reject) => {
+        if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
+            return reject(new Error('Service Worker 尚未激活'));
+        }
+        const channel = new MessageChannel();
+        const timer = setTimeout(() => reject(new Error('SW 响应超时')), 8000);
+        channel.port1.onmessage = (e) => {
+            clearTimeout(timer);
+            resolve(e.data);
+        };
+        try {
+            navigator.serviceWorker.controller.postMessage({ type }, [channel.port2]);
+        } catch (err) {
+            clearTimeout(timer);
+            reject(err);
+        }
+    });
+}
+
+// 刷新缓存统计显示
+async function refreshCacheStats() {
+    const coreSizeEl = document.getElementById('cacheCoreSize');
+    const coreCountEl = document.getElementById('cacheCoreCount');
+    const runtimeSizeEl = document.getElementById('cacheRuntimeSize');
+    const runtimeCountEl = document.getElementById('cacheRuntimeCount');
+    if (!coreSizeEl) return;
+
+    coreSizeEl.textContent = '...';
+    runtimeSizeEl.textContent = '...';
+
+    try {
+        const stats = await sendSWMessage('CACHE_STATS');
+        if (stats && stats.core) {
+            coreSizeEl.textContent = formatCacheBytes(stats.core.bytes);
+            coreCountEl.textContent = stats.core.entries;
+        }
+        if (stats && stats.runtime) {
+            runtimeSizeEl.textContent = formatCacheBytes(stats.runtime.bytes);
+            runtimeCountEl.textContent = stats.runtime.entries;
+        }
+    } catch (err) {
+        // 兜底：直接从 caches API 估算（不计算字节数）
+        try {
+            const names = await caches.keys();
+            let coreCount = 0, runtimeCount = 0;
+            for (const name of names) {
+                if (!name.startsWith('time-logger-')) continue;
+                const cache = await caches.open(name);
+                const keys = await cache.keys();
+                if (name.includes('runtime')) runtimeCount += keys.length;
+                else coreCount += keys.length;
+            }
+            coreSizeEl.textContent = '~';
+            coreCountEl.textContent = coreCount;
+            runtimeSizeEl.textContent = '~';
+            runtimeCountEl.textContent = runtimeCount;
+        } catch (_) {
+            coreSizeEl.textContent = '不可用';
+            runtimeSizeEl.textContent = '不可用';
+        }
+    }
+}
+
+// 清理所有 SW 缓存
+async function clearSWCache() {
+    if (!confirm('确定要清理所有缓存吗？\n\n✅ 你的时间记录不会丢失\n⚡ 下次联网会自动重新下载资源')) {
+        return;
+    }
+
+    const btn = document.getElementById('clearCacheBtn');
+    const originalHTML = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ri-loader-4-line animate-spin"></i> 清理中...';
+    }
+
+    let cleared = false;
+    // 优先让 SW 清理（它知道当前所有的缓存名）
+    try {
+        const result = await sendSWMessage('CLEAR_CACHE');
+        cleared = !!(result && result.ok);
+    } catch (_) { /* fallback */ }
+
+    // 兜底：主线程直接 caches.delete
+    if (!cleared) {
+        try {
+            const names = await caches.keys();
+            await Promise.all(
+                names.filter(n => n.startsWith('time-logger-')).map(n => caches.delete(n))
+            );
+            cleared = true;
+        } catch (err) {
+            console.error('[缓存] 清理失败:', err);
+        }
+    }
+
+    // 更新存储监控（已用空间会下降）
+    setTimeout(() => updateStorageMonitor(), 300);
+    setTimeout(() => refreshCacheStats(), 600);
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+
+    if (cleared) {
+        showToast('✨ 缓存已清理，已释放浏览器空间', 'ri-checkbox-circle-line');
+    } else {
+        showToast('清理失败，请刷新页面后重试', 'ri-error-warning-line');
+    }
+}
+
+// 绑定按钮（可选链兜底）
+document.getElementById('clearCacheBtn')?.addEventListener('click', clearSWCache);
+document.getElementById('refreshCacheBtn')?.addEventListener('click', () => {
+    refreshCacheStats();
+    showToast('已刷新缓存统计', 'ri-refresh-line');
+});
+
 // ==================== 应用初始化 ====================
 async function initApp() {
     try {
@@ -600,7 +793,10 @@ async function initApp() {
 
         isReady = true;
 
-        // 6. 迁移成功提示
+        // 6. 默认进入主页
+        switchPage('home');
+
+        // 7. 迁移成功提示
         if (migrationResult.migrated && migrationResult.count > 0) {
             setTimeout(() => {
                 showToast(`已自动迁移 ${migrationResult.count} 条历史记录到 IndexedDB ✨`, 'ri-database-2-line');
